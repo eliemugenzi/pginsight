@@ -1,0 +1,39 @@
+[package]
+name = "pgmon"
+version = "0.1.0"
+edition = "2021"
+authors = ["Elie <eliemugenzi@gmail.com>"]
+description = "Interactive terminal UI for monitoring PostgreSQL"
+license = "MIT"
+readme = "README.md"
+
+[[bin]]
+name = "pgmon"
+path = "src/main.rs"
+
+[dependencies]
+# TUI
+ratatui = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Async runtime + Postgres driver
+tokio = { version = "1.40", features = ["full"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+futures = "0.3"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
+
+# Errors + logging
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Misc helpers
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
