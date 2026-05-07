@@ -6,6 +6,10 @@ authors = ["Elie <eliemugenzi@gmail.com>"]
 description = "Interactive terminal UI for monitoring PostgreSQL"
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/eliemugenzi/pginsight"
+repository = "https://github.com/eliemugenzi/pginsight"
+keywords = ["postgresql", "monitoring", "tui", "database", "cli"]
+categories = ["command-line-utilities", "database"]
 
 [[bin]]
 name = "pginsight"

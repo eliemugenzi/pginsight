@@ -9,6 +9,49 @@ use crate::tui::Tui;
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivityFilter {
+    All,
+    Active,
+    Idle,
+    IdleInTransaction,
+    Waiting,
+}
+
+impl ActivityFilter {
+    pub fn next(self) -> Self {
+        match self {
+            Self::All               => Self::Active,
+            Self::Active            => Self::Idle,
+            Self::Idle              => Self::IdleInTransaction,
+            Self::IdleInTransaction => Self::Waiting,
+            Self::Waiting           => Self::All,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::All               => "all",
+            Self::Active            => "active",
+            Self::Idle              => "idle",
+            Self::IdleInTransaction => "idle in tx",
+            Self::Waiting           => "waiting",
+        }
+    }
+
+    pub fn matches(self, state: Option<&str>, wait_event: Option<&str>) -> bool {
+        match self {
+            Self::All => true,
+            Self::Active => state == Some("active"),
+            Self::Idle => state == Some("idle"),
+            Self::IdleInTransaction => state
+                .map(|s| s.starts_with("idle in transaction"))
+                .unwrap_or(false),
+            Self::Waiting => wait_event.is_some(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Overview,
     Activity,
@@ -75,6 +118,7 @@ pub struct App {
     pub statements: Vec<db::statements::StatementRow>,
     pub db_stats: Vec<db::stats::DatabaseStat>,
     pub table_stats: Vec<db::stats::TableStat>,
+    pub activity_filter: ActivityFilter,
     pub stats_show_tables: bool,
     pub locks: Vec<db::locks::LockWait>,
     pub replication: Option<db::replication::ReplicationInfo>,
@@ -92,6 +136,7 @@ impl App {
             show_help: false,
             error: None,
             statements_error: None,
+            activity_filter: ActivityFilter::All,
             selected: [0; 6],
             overview: None,
             sessions: Vec::new(),
@@ -201,7 +246,14 @@ impl App {
     fn list_len(&self, tab: Tab) -> usize {
         match tab {
             Tab::Overview => 0,
-            Tab::Activity => self.sessions.len(),
+            Tab::Activity => self
+                .sessions
+                .iter()
+                .filter(|s| {
+                    self.activity_filter
+                        .matches(s.state.as_deref(), s.wait_event.as_deref())
+                })
+                .count(),
             Tab::Queries => self.statements.len(),
             Tab::Stats => {
                 if self.stats_show_tables {
@@ -279,6 +331,10 @@ impl App {
             (KeyCode::PageUp, _) => {
                 let idx = self.tab.index();
                 self.selected[idx] = self.selected[idx].saturating_sub(10);
+            }
+            (KeyCode::Char('f'), KeyModifiers::NONE) if self.tab == Tab::Activity => {
+                self.activity_filter = self.activity_filter.next();
+                self.selected[Tab::Activity.index()] = 0;
             }
             (KeyCode::Char('s'), KeyModifiers::NONE) if self.tab == Tab::Stats => {
                 self.stats_show_tables = !self.stats_show_tables;

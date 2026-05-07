@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS universal binary
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build — Apple Silicon (arm64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build — Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            target/aarch64-apple-darwin/release/pginsight \
+            target/x86_64-apple-darwin/release/pginsight \
+            -output pginsight
+          chmod +x pginsight
+
+      - name: Verify universal binary
+        run: lipo -info pginsight
+
+      - name: Package artifacts
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+
+          # Universal (recommended)
+          tar -czf "pginsight-${VERSION}-macos-universal.tar.gz" pginsight
+          shasum -a 256 "pginsight-${VERSION}-macos-universal.tar.gz" \
+            > "pginsight-${VERSION}-macos-universal.tar.gz.sha256"
+
+          # arm64 only
+          cp target/aarch64-apple-darwin/release/pginsight pginsight
+          tar -czf "pginsight-${VERSION}-macos-arm64.tar.gz" pginsight
+          shasum -a 256 "pginsight-${VERSION}-macos-arm64.tar.gz" \
+            > "pginsight-${VERSION}-macos-arm64.tar.gz.sha256"
+
+          # x86_64 only
+          cp target/x86_64-apple-darwin/release/pginsight pginsight
+          tar -czf "pginsight-${VERSION}-macos-x86_64.tar.gz" pginsight
+          shasum -a 256 "pginsight-${VERSION}-macos-x86_64.tar.gz" \
+            > "pginsight-${VERSION}-macos-x86_64.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "pginsight ${{ github.ref_name }}"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            pginsight-${{ github.ref_name }}-macos-universal.tar.gz
+            pginsight-${{ github.ref_name }}-macos-universal.tar.gz.sha256
+            pginsight-${{ github.ref_name }}-macos-arm64.tar.gz
+            pginsight-${{ github.ref_name }}-macos-arm64.tar.gz.sha256
+            pginsight-${{ github.ref_name }}-macos-x86_64.tar.gz
+            pginsight-${{ github.ref_name }}-macos-x86_64.tar.gz.sha256

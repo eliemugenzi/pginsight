@@ -1,105 +1,145 @@
 # pginsight
 
-Interactive terminal UI for monitoring PostgreSQL — built with Rust.
+**pginsight** is an interactive terminal UI for monitoring PostgreSQL in real time. Connect to any database — local or remote — and immediately get visibility into performance, active sessions, slow queries, locks, and replication health, all from your terminal.
 
-## Quick start
+---
+
+## Installation
+
+### Homebrew (macOS) — recommended
 
 ```bash
-# Build & run
-cargo run --release
-
-# pginsight will prompt for connection details:
-#   Host     [localhost]
-#   Port     [5432]
-#   Username [youruser]
-#   Password
-#   Database [youruser]
+brew tap eliemugenzi/pginsight
+brew install pginsight
 ```
 
-You can also pre-fill any field via CLI flags or standard PostgreSQL env vars:
+### Download binary
+
+Grab the latest universal binary (Apple Silicon + Intel) from the
+[Releases](https://github.com/eliemugenzi/pginsight/releases) page.
 
 ```bash
-# CLI flags (any combination)
+# Extract and install
+tar -xzf pginsight-*-macos-universal.tar.gz
+mv pginsight /usr/local/bin/
+```
+
+> **First launch on macOS:** if Gatekeeper blocks the binary, run once:
+> ```bash
+> xattr -dr com.apple.quarantine /usr/local/bin/pginsight
+> ```
+
+### Build from source
+
+```bash
+cargo install --path .
+```
+
+> Requires Rust 1.75+ and a reachable PostgreSQL instance.
+
+---
+
+## Connecting
+
+pginsight prompts you for credentials on startup — no connection string required:
+
+```
+  pginsight  PostgreSQL Monitor
+  ─────────────────────────────────────────────────
+
+  Host        [localhost]
+  Port        [5432]
+  Username    [youruser]
+  Password
+  Database    [youruser]
+```
+
+You can pre-fill any field via CLI flags or the standard PostgreSQL environment variables:
+
+```bash
+# Pre-fill individual fields
 pginsight -H myserver -U admin -d production
 
-# Env vars (same as psql)
+# Use environment variables (same as psql)
 PGHOST=myserver PGUSER=admin PGDATABASE=prod PGPASSWORD=secret pginsight
 
-# Skip password prompt (local peer / trust auth)
+# Skip the password prompt for local peer / trust auth
 pginsight --no-password
 
-# Auto-accept all defaults, no prompts (useful in scripts)
+# Skip all prompts and connect immediately using defaults
 pginsight -y
 ```
 
-Set `PGINSIGHT_LOG=info` to send debug logs to stderr (they won't corrupt the TUI).
+---
 
-## Features
+## What you get
 
-| Tab          | What you see                                                          |
-|--------------|-----------------------------------------------------------------------|
-| Overview     | Server version, role (primary/replica), uptime, connection gauge, cache-hit gauge, commit/rollback counts |
-| Activity     | Live `pg_stat_activity` — state, wait events, duration, query detail  |
-| Queries      | Top-50 slowest statements from `pg_stat_statements`                   |
-| Stats        | Database sizes + cache hit; table sizes, live/dead rows, seq/idx scans (toggle with `s`) |
-| Locks        | Blocked/blocking session pairs — lock mode, relation, wait time       |
-| Replication  | Replica list with write/flush/replay lag; replication slots           |
+### Overview
+Server version, role (primary or replica), uptime, a live connection usage gauge, cache hit ratio gauge, and a breakdown of active, idle, and idle-in-transaction sessions.
+
+### Activity
+A live view of `pg_stat_activity` — every client session with its state, wait events, duration, and current query. Filter sessions by state with `f`:
+
+- **all** — every connected client
+- **active** — sessions currently executing a query
+- **idle** — connected but doing nothing
+- **idle in transaction** — inside an open transaction (worth watching)
+- **waiting** — blocked on a lock or resource
+
+### Queries
+Top 50 slowest statements from `pg_stat_statements`, ranked by total execution time. Selecting a row shows the full query with syntax highlighting and clause-level formatting. Requires `pg_stat_statements` (see below).
+
+### Stats
+Database-level and table-level statistics in one place. Toggle between views with `s`:
+
+- **Databases** — size, connections, cache hit ratio, commits, and rollbacks per database
+- **Tables** — size, live rows, dead rows (with bloat % coloring), and sequential vs index scan counts
+
+### Locks
+Every blocked session paired with the session blocking it — lock mode, relation name, and how long it has been waiting. Selecting a row shows the full SQL of both the blocked and blocking query, highlighted side by side.
+
+### Replication
+Primary/replica role, current WAL LSN, connected replicas with write/flush/replay lag, and replication slot retention.
+
+---
 
 ## Key bindings
 
 | Key | Action |
 |-----|--------|
-| `1`–`6` | Jump to tab |
+| `1` – `6` | Jump to tab |
 | `Tab` / `Shift+Tab` | Next / previous tab |
 | `j` / `k` or `↑` / `↓` | Navigate rows |
 | `g` / `G` | Jump to top / bottom |
 | `PgUp` / `PgDn` | Page through rows |
-| `s` | Toggle Stats: Databases ↔ Tables |
+| `f` | Cycle session filter (Activity tab) |
+| `s` | Toggle Databases ↔ Tables (Stats tab) |
 | `r` | Force refresh now |
 | `p` | Pause / resume auto-refresh |
 | `?` / `F1` | Help overlay |
 | `Esc` | Dismiss error |
 | `q` / `Ctrl+C` | Quit |
 
-## Required Postgres extensions
+Refresh interval defaults to 2 seconds. Change it with `--refresh <secs>`.
 
-The **Queries** tab requires `pg_stat_statements`:
+---
+
+## pg_stat_statements
+
+The **Queries** tab requires the `pg_stat_statements` extension. If it is not set up, the tab will tell you exactly what to do.
 
 ```sql
--- Add to postgresql.conf:
+-- 1. Add to postgresql.conf and restart PostgreSQL:
 shared_preload_libraries = 'pg_stat_statements'
 
--- Then after restart:
-CREATE EXTENSION pg_stat_statements;
+-- 2. After restart, run once per database:
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
 
-All other tabs use built-in system catalogs — no extensions needed.
+All other tabs use built-in PostgreSQL system catalogs and need no extensions.
 
-## Layout
+---
 
-```
-src/
-├── main.rs            entry point
-├── cli.rs             clap arguments (host, port, user, dbname flags)
-├── connect.rs         interactive credential prompt
-├── tui.rs             terminal init / restore + panic hook
-├── format.rs          bytes / ms / number / datetime formatters
-├── app.rs             App state, event loop, tab navigation, data refresh
-├── db/
-│   ├── mod.rs         Pool (from_credentials + reconnect)
-│   ├── overview.rs    server overview query
-│   ├── activity.rs    pg_stat_activity + cancel/terminate helpers
-│   ├── statements.rs  pg_stat_statements top-N slow
-│   ├── stats.rs       database & table statistics
-│   ├── locks.rs       lock wait graph
-│   └── replication.rs replication state, replicas, slots
-└── ui/
-    ├── mod.rs         layout, tab bar, status bar, help overlay
-    ├── help.rs        keybinding reference overlay
-    ├── overview.rs    Overview tab
-    ├── activity.rs    Activity tab
-    ├── queries.rs     Queries tab
-    ├── stats.rs       Stats tab (two-mode)
-    ├── locks.rs       Locks tab
-    └── replication.rs Replication tab
-```
+## License
+
+MIT

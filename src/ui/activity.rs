@@ -10,11 +10,28 @@ use crate::app::{App, Tab};
 use crate::format;
 
 pub fn draw(f: &mut Frame<'_>, app: &App, area: Rect) {
-    let block = super::panel(if app.sessions.is_empty() {
-        "Activity — no client sessions"
+    let filtered: Vec<&crate::db::activity::Session> = app
+        .sessions
+        .iter()
+        .filter(|s| {
+            app.activity_filter
+                .matches(s.state.as_deref(), s.wait_event.as_deref())
+        })
+        .collect();
+
+    let filter_label = app.activity_filter.label();
+    let title = if app.sessions.is_empty() {
+        "Activity — no client sessions  [f] filter".to_string()
     } else {
-        "Activity"
-    });
+        format!(
+            "Activity — {} of {} sessions  [f] filter: {}",
+            filtered.len(),
+            app.sessions.len(),
+            filter_label,
+        )
+    };
+
+    let block = super::panel(&title);
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -29,17 +46,33 @@ pub fn draw(f: &mut Frame<'_>, app: &App, area: Rect) {
         return;
     }
 
+    if filtered.is_empty() {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                format!("No sessions with state: {filter_label}"),
+                Style::default().fg(Color::DarkGray),
+            ))),
+            inner,
+        );
+        return;
+    }
+
     // Split: table on top, query detail on bottom
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(5), Constraint::Length(4)])
         .split(inner);
 
-    draw_table(f, app, chunks[0]);
-    draw_query_detail(f, app, chunks[1]);
+    draw_table(f, app, &filtered, chunks[0]);
+    draw_query_detail(f, app, &filtered, chunks[1]);
 }
 
-fn draw_table(f: &mut Frame<'_>, app: &App, area: Rect) {
+fn draw_table(
+    f: &mut Frame<'_>,
+    app: &App,
+    sessions: &[&crate::db::activity::Session],
+    area: Rect,
+) {
     let selected_idx = app.selected[Tab::Activity.index()];
 
     let header = Row::new(vec!["PID", "User", "Database", "State", "Wait", "Duration", "Query"])
@@ -50,8 +83,7 @@ fn draw_table(f: &mut Frame<'_>, app: &App, area: Rect) {
         )
         .bottom_margin(1);
 
-    let rows: Vec<Row> = app
-        .sessions
+    let rows: Vec<Row> = sessions
         .iter()
         .map(|s| {
             let state = s.state.as_deref().unwrap_or("");
@@ -124,9 +156,14 @@ fn draw_table(f: &mut Frame<'_>, app: &App, area: Rect) {
     f.render_stateful_widget(table, area, &mut state);
 }
 
-fn draw_query_detail(f: &mut Frame<'_>, app: &App, area: Rect) {
+fn draw_query_detail(
+    f: &mut Frame<'_>,
+    app: &App,
+    sessions: &[&crate::db::activity::Session],
+    area: Rect,
+) {
     let idx = app.selected[Tab::Activity.index()];
-    let session = app.sessions.get(idx);
+    let session = sessions.get(idx).copied();
 
     let app_name = session
         .and_then(|s| s.application_name.as_deref())
