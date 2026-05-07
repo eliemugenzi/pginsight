@@ -51,7 +51,7 @@ pginsight prompts you for credentials on startup — no connection string requir
   Port        [5432]
   Username    [youruser]
   Password
-  Database    [youruser]
+  Database    [yourdb]
 ```
 
 CLI flags let you pre-fill any field and skip that prompt:
