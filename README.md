@@ -54,20 +54,14 @@ pginsight prompts you for credentials on startup — no connection string requir
   Database    [youruser]
 ```
 
-You can pre-fill any field via CLI flags or the standard PostgreSQL environment variables:
+CLI flags let you pre-fill any field and skip that prompt:
 
 ```bash
-# Pre-fill individual fields
+# Pre-fill individual fields — only the missing ones will be prompted
 pginsight -H myserver -U admin -d production
-
-# Use environment variables (same as psql)
-PGHOST=myserver PGUSER=admin PGDATABASE=prod PGPASSWORD=secret pginsight
 
 # Skip the password prompt for local peer / trust auth
 pginsight --no-password
-
-# Skip all prompts and connect immediately using defaults
-pginsight -y
 ```
 
 ---

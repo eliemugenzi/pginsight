@@ -5,29 +5,25 @@ use std::time::Duration;
 #[derive(Parser, Debug, Clone)]
 #[command(name = "pginsight", author, version, about, long_about = None)]
 pub struct Cli {
-    /// Postgres host (overrides interactive prompt; env: PGHOST)
-    #[arg(short = 'H', long, env = "PGHOST", value_name = "HOST")]
+    /// Postgres host (skips the host prompt)
+    #[arg(short = 'H', long, value_name = "HOST")]
     pub host: Option<String>,
 
-    /// Postgres port (overrides interactive prompt; env: PGPORT)
-    #[arg(short = 'p', long, env = "PGPORT", value_name = "PORT")]
+    /// Postgres port (skips the port prompt)
+    #[arg(short = 'p', long, value_name = "PORT")]
     pub port: Option<u16>,
 
-    /// Postgres username (overrides interactive prompt; env: PGUSER)
-    #[arg(short = 'U', long, env = "PGUSER", value_name = "USER")]
+    /// Postgres username (skips the username prompt)
+    #[arg(short = 'U', long, value_name = "USER")]
     pub username: Option<String>,
 
-    /// Database name (overrides interactive prompt; env: PGDATABASE)
-    #[arg(short = 'd', long, env = "PGDATABASE", value_name = "DBNAME")]
+    /// Database name (skips the database prompt)
+    #[arg(short = 'd', long, value_name = "DBNAME")]
     pub dbname: Option<String>,
 
     /// Skip password prompt and connect without a password (peer / trust auth)
     #[arg(long)]
     pub no_password: bool,
-
-    /// Auto-accept all defaults — skip interactive prompt entirely
-    #[arg(short = 'y', long)]
-    pub yes: bool,
 
     /// Refresh interval in seconds
     #[arg(short = 'r', long = "refresh", default_value_t = 2, value_name = "SECS")]

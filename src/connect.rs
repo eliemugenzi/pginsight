@@ -21,56 +21,19 @@ pub struct Credentials {
     pub dbname: String,
 }
 
-/// Build credentials from CLI args / env vars, prompting for anything missing.
+/// Show the connection form, prompting the user for each field.
+/// CLI flags pre-fill the defaults shown in brackets.
 pub fn prompt(cli: &Cli) -> Result<Credentials> {
+    let mut stdout = io::stdout();
+
     let sys_user = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_else(|_| "postgres".into());
 
-    let def_host = cli.host.as_deref().unwrap_or("localhost").to_string();
-    let def_port = cli.port.unwrap_or(5432);
-    let def_user = cli.username.as_deref().unwrap_or(&sys_user).to_string();
+    let def_host   = cli.host.as_deref().unwrap_or("localhost");
+    let def_port   = cli.port.unwrap_or(5432).to_string();
+    let def_user   = cli.username.as_deref().unwrap_or(&sys_user);
 
-    // PGPASSWORD env var silently pre-fills the password (same as psql)
-    let pg_password = std::env::var("PGPASSWORD").ok();
-
-    let mut stdout = io::stdout();
-
-    if cli.yes {
-        // Non-interactive: use defaults / CLI args as-is, print a summary line.
-        let dbname = cli
-            .dbname
-            .clone()
-            .unwrap_or_else(|| def_user.clone());
-        let password = if cli.no_password { None } else { pg_password };
-
-        execute!(
-            stdout,
-            Print("\n"),
-            SetForegroundColor(Color::Cyan),
-            Print("  pginsight"),
-            ResetColor,
-            SetForegroundColor(Color::DarkGrey),
-            Print("  PostgreSQL Monitor\n"),
-            ResetColor,
-            SetForegroundColor(Color::DarkGrey),
-            Print(format!(
-                "  Connecting to {}@{}:{}/{} …\n\n",
-                def_user, def_host, def_port, dbname
-            )),
-            ResetColor,
-        )?;
-
-        return Ok(Credentials {
-            host: def_host,
-            port: def_port,
-            user: def_user,
-            password,
-            dbname,
-        });
-    }
-
-    // ── Interactive form ────────────────────────────────────────────────────
     execute!(
         stdout,
         Print("\n"),
@@ -84,36 +47,23 @@ pub fn prompt(cli: &Cli) -> Result<Credentials> {
         ResetColor,
     )?;
 
-    let host = field(&mut stdout, "Host", &def_host)?;
-
-    let port_str = field(&mut stdout, "Port", &def_port.to_string())?;
-    let port: u16 = port_str
-        .parse()
-        .unwrap_or(def_port);
-
-    let user = field(&mut stdout, "Username", &def_user)?;
+    let host  = ask_field(&mut stdout, "Host",     def_host)?;
+    let port: u16 = ask_field(&mut stdout, "Port", &def_port)?.parse().unwrap_or(5432);
+    let user  = ask_field(&mut stdout, "Username", def_user)?;
 
     let def_dbname = cli.dbname.as_deref().unwrap_or(&user).to_string();
-    let dbname = field(&mut stdout, "Database", &def_dbname)?;
+    let dbname = ask_field(&mut stdout, "Database", &def_dbname)?;
 
     let password = if cli.no_password {
         execute!(
             stdout,
             SetForegroundColor(Color::DarkGrey),
-            Print("  Password     [skipped — --no-password]\n"),
+            Print("  Password     [skipped]\n"),
             ResetColor,
         )?;
         None
-    } else if let Some(pw) = pg_password {
-        execute!(
-            stdout,
-            SetForegroundColor(Color::DarkGrey),
-            Print("  Password     [from PGPASSWORD]\n"),
-            ResetColor,
-        )?;
-        if pw.is_empty() { None } else { Some(pw) }
     } else {
-        let pw = password_field(&mut stdout, "Password")?;
+        let pw = ask_password(&mut stdout, "Password")?;
         if pw.is_empty() { None } else { Some(pw) }
     };
 
@@ -121,19 +71,16 @@ pub fn prompt(cli: &Cli) -> Result<Credentials> {
         stdout,
         Print("\n"),
         SetForegroundColor(Color::DarkGrey),
-        Print(format!(
-            "  Connecting to {}@{}:{}/{} …\n\n",
-            user, host, port, dbname
-        )),
+        Print(format!("  Connecting to {}@{}:{}/{} …\n\n", user, host, port, dbname)),
         ResetColor,
     )?;
 
     Ok(Credentials { host, port, user, password, dbname })
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn field(stdout: &mut io::Stdout, label: &str, default: &str) -> Result<String> {
+fn ask_field(stdout: &mut io::Stdout, label: &str, default: &str) -> Result<String> {
     execute!(
         stdout,
         SetForegroundColor(Color::DarkGrey),
@@ -154,23 +101,17 @@ fn field(stdout: &mut io::Stdout, label: &str, default: &str) -> Result<String> 
 
     let mut input = String::new();
     match io::stdin().read_line(&mut input) {
-        Ok(0) => return Err(anyhow!("EOF on stdin")),
-        Err(e) if e.kind() == io::ErrorKind::Interrupted => {
-            return Err(anyhow!("Interrupted"));
-        }
+        Ok(0)  => return Err(anyhow!("EOF on stdin")),
+        Err(e) if e.kind() == io::ErrorKind::Interrupted => return Err(anyhow!("Interrupted")),
         Err(e) => return Err(e.into()),
-        Ok(_) => {}
+        Ok(_)  => {}
     }
 
     let trimmed = input.trim().to_string();
-    Ok(if trimmed.is_empty() {
-        default.to_string()
-    } else {
-        trimmed
-    })
+    Ok(if trimmed.is_empty() { default.to_string() } else { trimmed })
 }
 
-fn password_field(stdout: &mut io::Stdout, label: &str) -> Result<String> {
+fn ask_password(stdout: &mut io::Stdout, label: &str) -> Result<String> {
     execute!(
         stdout,
         SetForegroundColor(Color::DarkGrey),
@@ -180,7 +121,6 @@ fn password_field(stdout: &mut io::Stdout, label: &str) -> Result<String> {
     stdout.flush()?;
 
     enable_raw_mode()?;
-
     let mut password = String::new();
 
     let result = (|| -> Result<String> {
