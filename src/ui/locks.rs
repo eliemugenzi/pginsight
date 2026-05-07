@@ -109,26 +109,36 @@ fn draw_detail(f: &mut Frame<'_>, app: &App, area: Rect) {
         return;
     };
 
-    let blocked_q = lw.blocked_query.as_deref().unwrap_or("(none)").trim();
-    let blocking_q = lw.blocking_query.as_deref().unwrap_or("(none)").trim();
+    let blocked_q = lw.blocked_query.as_deref().unwrap_or("").trim();
+    let blocking_q = lw.blocking_query.as_deref().unwrap_or("").trim();
 
-    let trunc = |s: &str, n: usize| -> String {
-        if s.len() > n {
-            format!("{}…", &s[..n])
-        } else {
-            s.to_string()
-        }
-    };
+    // Split the area: top half = blocked query, bottom half = blocking query
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
 
-    let lines = vec![
-        Line::from(vec![
-            Span::styled("Blocked   ", Style::default().fg(Color::Red)),
-            Span::raw(trunc(blocked_q, 120)),
-        ]),
-        Line::from(vec![
-            Span::styled("Blocking  ", Style::default().fg(Color::Yellow)),
-            Span::raw(trunc(blocking_q, 120)),
-        ]),
-    ];
-    f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+    // Blocked query
+    let mut blocked_lines = vec![Line::from(Span::styled(
+        format!("▶ Blocked (pid {})", lw.blocked_pid),
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+    ))];
+    if blocked_q.is_empty() {
+        blocked_lines.push(Line::from(Span::styled("(none)", Style::default().fg(Color::DarkGray))));
+    } else {
+        blocked_lines.extend(crate::sql_format::highlight(blocked_q));
+    }
+    f.render_widget(Paragraph::new(blocked_lines).wrap(Wrap { trim: false }), chunks[0]);
+
+    // Blocking query
+    let mut blocking_lines = vec![Line::from(Span::styled(
+        format!("▶ Blocking (pid {})", lw.blocking_pid),
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+    ))];
+    if blocking_q.is_empty() {
+        blocking_lines.push(Line::from(Span::styled("(none)", Style::default().fg(Color::DarkGray))));
+    } else {
+        blocking_lines.extend(crate::sql_format::highlight(blocking_q));
+    }
+    f.render_widget(Paragraph::new(blocking_lines).wrap(Wrap { trim: false }), chunks[1]);
 }

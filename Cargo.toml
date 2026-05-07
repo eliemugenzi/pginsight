@@ -1,5 +1,5 @@
 [package]
-name = "pgmon"
+name = "pginsight"
 version = "0.1.0"
 edition = "2021"
 authors = ["Elie <eliemugenzi@gmail.com>"]
@@ -8,7 +8,7 @@ license = "MIT"
 readme = "README.md"
 
 [[bin]]
-name = "pgmon"
+name = "pginsight"
 path = "src/main.rs"
 
 [dependencies]

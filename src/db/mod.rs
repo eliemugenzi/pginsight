@@ -74,6 +74,7 @@ impl Pool {
     }
 
     /// Replace the underlying client with a fresh connection.
+    #[allow(dead_code)]
     pub async fn reconnect(&self) -> Result<()> {
         let client = build_client(&self.config).await?;
         *self.inner.write().await = Arc::new(client);

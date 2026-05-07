@@ -4,6 +4,7 @@ mod connect;
 mod db;
 mod export;
 mod format;
+mod sql_format;
 mod tui;
 mod ui;
 
@@ -48,7 +49,7 @@ async fn main() -> Result<()> {
 fn init_tracing() {
     use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-    let filter = EnvFilter::try_from_env("PGMON_LOG").unwrap_or_else(|_| EnvFilter::new("warn"));
+    let filter = EnvFilter::try_from_env("PGINSIGHT_LOG").unwrap_or_else(|_| EnvFilter::new("warn"));
     let _ = tracing_subscriber::registry()
         .with(filter)
         .with(fmt::layer().with_writer(std::io::stderr))

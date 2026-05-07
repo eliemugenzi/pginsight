@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::Utc as ChronoUtc;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -77,7 +77,7 @@ fn draw_server_info(
         Line::from(vec![
             label("Uptime    "),
             Span::raw(ov.started_at.map(|t| {
-                let secs = (chrono::Utc::now() - t).num_seconds().max(0) as u64;
+                let secs = (ChronoUtc::now().signed_duration_since(t)).num_seconds().max(0) as u64;
                 let d = secs / 86400;
                 let h = (secs % 86400) / 3600;
                 let m = (secs % 3600) / 60;

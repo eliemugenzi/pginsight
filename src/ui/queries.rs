@@ -14,16 +14,30 @@ pub fn draw(f: &mut Frame<'_>, app: &App, area: Rect) {
         let block = super::panel("Queries (pg_stat_statements)");
         let inner = block.inner(area);
         f.render_widget(block, area);
-        let msg = if app.last_refresh.is_none() {
-            "Loading…"
+
+        let (msg, color) = if app.last_refresh.is_none() {
+            ("Loading…".to_string(), Color::DarkGray)
+        } else if let Some(ref err) = app.statements_error {
+            let hint = if err.contains("shared_preload_libraries") {
+                "\n\nFix: add pg_stat_statements to shared_preload_libraries in postgresql.conf, \
+                 then restart PostgreSQL.\n\n\
+                 shared_preload_libraries = 'pg_stat_statements'\n\n\
+                 After restart, run: CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+            } else if err.contains("not installed") || err.contains("does not exist") {
+                "\n\nFix: CREATE EXTENSION pg_stat_statements;"
+            } else if err.contains("UPDATE") {
+                "\n\nFix: ALTER EXTENSION pg_stat_statements UPDATE;"
+            } else {
+                ""
+            };
+            (format!("{err}{hint}"), Color::Red)
         } else {
-            "pg_stat_statements not installed.\n\
-             Run: CREATE EXTENSION pg_stat_statements;\n\
-             Then restart (or reload) PostgreSQL and reconnect."
+            ("No statements recorded yet — run some queries first.".to_string(), Color::DarkGray)
         };
+
         f.render_widget(
             Paragraph::new(msg)
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(color))
                 .wrap(Wrap { trim: false }),
             inner,
         );
@@ -113,13 +127,6 @@ fn draw_query_detail(f: &mut Frame<'_>, app: &App, area: Rect) {
     let idx = app.selected[Tab::Queries.index()];
     let stmt = app.statements.get(idx);
 
-    let query = stmt.map(|s| s.query.trim()).unwrap_or("").to_string();
-    let query = if query.len() > 400 {
-        format!("{}…", &query[..400])
-    } else {
-        query
-    };
-
     let meta = stmt
         .map(|s| {
             format!(
@@ -132,13 +139,22 @@ fn draw_query_detail(f: &mut Frame<'_>, app: &App, area: Rect) {
         })
         .unwrap_or_default();
 
-    let lines = vec![
-        Line::from(Span::styled(meta, Style::default().fg(Color::DarkGray))),
-        Line::from(if query.is_empty() {
-            Span::styled("(select a row above)", Style::default().fg(Color::DarkGray))
-        } else {
-            Span::raw(query)
-        }),
-    ];
+    let mut lines = vec![Line::from(Span::styled(
+        meta,
+        Style::default().fg(Color::DarkGray),
+    ))];
+
+    match stmt.map(|s| s.query.trim()) {
+        None | Some("") => {
+            lines.push(Line::from(Span::styled(
+                "(select a row above)",
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
+        Some(q) => {
+            lines.extend(crate::sql_format::highlight(q));
+        }
+    }
+
     f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
 }

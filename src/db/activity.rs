@@ -35,7 +35,7 @@ pub async fn fetch(pool: &Pool) -> Result<Vec<Session>> {
                 query,
                 query_start,
                 COALESCE(
-                    EXTRACT(EPOCH FROM (now() - query_start)) * 1000.0,
+                    EXTRACT(EPOCH FROM (now() - query_start))::float8 * 1000.0,
                     0.0)                                                    AS duration_ms
              FROM pg_stat_activity
              WHERE pid <> pg_backend_pid()
@@ -64,6 +64,7 @@ pub async fn fetch(pool: &Pool) -> Result<Vec<Session>> {
 }
 
 /// Cancel a backend by PID (non-destructive — current query is cancelled).
+#[allow(dead_code)]
 pub async fn cancel_backend(pool: &Pool, pid: i32) -> Result<bool> {
     let client = pool.client().await;
     let row = client
@@ -73,6 +74,7 @@ pub async fn cancel_backend(pool: &Pool, pid: i32) -> Result<bool> {
 }
 
 /// Terminate a backend by PID (forceful — connection is closed).
+#[allow(dead_code)]
 pub async fn terminate_backend(pool: &Pool, pid: i32) -> Result<bool> {
     let client = pool.client().await;
     let row = client

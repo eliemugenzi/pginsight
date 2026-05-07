@@ -72,9 +72,9 @@ pub async fn fetch(pool: &Pool) -> Result<ReplicationInfo> {
                 write_lsn::text,
                 flush_lsn::text,
                 replay_lsn::text,
-                EXTRACT(EPOCH FROM write_lag)   * 1000.0                   AS write_lag_ms,
-                EXTRACT(EPOCH FROM flush_lag)   * 1000.0                   AS flush_lag_ms,
-                EXTRACT(EPOCH FROM replay_lag)  * 1000.0                   AS replay_lag_ms
+                EXTRACT(EPOCH FROM write_lag)::float8   * 1000.0            AS write_lag_ms,
+                EXTRACT(EPOCH FROM flush_lag)::float8   * 1000.0            AS flush_lag_ms,
+                EXTRACT(EPOCH FROM replay_lag)::float8  * 1000.0            AS replay_lag_ms
              FROM pg_stat_replication
              ORDER BY application_name",
             &[],

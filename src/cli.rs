@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::time::Duration;
 
-/// pgmon — interactive PostgreSQL monitor for the terminal.
+/// pginsight — interactive PostgreSQL monitor for the terminal.
 #[derive(Parser, Debug, Clone)]
-#[command(name = "pgmon", author, version, about, long_about = None)]
+#[command(name = "pginsight", author, version, about, long_about = None)]
 pub struct Cli {
     /// Postgres host (overrides interactive prompt; env: PGHOST)
     #[arg(short = 'H', long, env = "PGHOST", value_name = "HOST")]
@@ -34,7 +34,7 @@ pub struct Cli {
     pub refresh_secs: u64,
 
     /// Application name reported to Postgres (visible in pg_stat_activity)
-    #[arg(long = "app-name", default_value = "pgmon")]
+    #[arg(long = "app-name", default_value = "pginsight")]
     pub app_name: String,
 }
 

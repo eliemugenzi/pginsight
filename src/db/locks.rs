@@ -30,7 +30,7 @@ pub async fn fetch(pool: &Pool) -> Result<Vec<LockWait>> {
                 bl.mode                                                         AS lock_mode,
                 COALESCE(c.relname, '')                                         AS relation,
                 COALESCE(
-                    EXTRACT(EPOCH FROM (now() - blocked.query_start)) * 1000.0,
+                    EXTRACT(EPOCH FROM (now() - blocked.query_start))::float8 * 1000.0,
                     0.0)                                                        AS wait_ms
              FROM pg_stat_activity AS blocked
              JOIN pg_stat_activity AS blocking

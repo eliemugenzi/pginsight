@@ -63,6 +63,8 @@ pub struct App {
     pub should_quit: bool,
     pub show_help: bool,
     pub error: Option<String>,
+    /// Separate error for the Queries tab so the tab can show the real reason.
+    pub statements_error: Option<String>,
 
     // Per-tab selected row index
     pub selected: [usize; 6],
@@ -89,6 +91,7 @@ impl App {
             should_quit: false,
             show_help: false,
             error: None,
+            statements_error: None,
             selected: [0; 6],
             overview: None,
             sessions: Vec::new(),
@@ -144,7 +147,7 @@ impl App {
                     Ok(v) => Some(v),
                     Err(e) => {
                         if first_error.is_none() {
-                            first_error = Some(e.to_string());
+                            first_error = Some(format!("{:#}", e));
                         }
                         None
                     }
@@ -158,14 +161,15 @@ impl App {
         if let Some(v) = try_fetch!(db::activity::fetch(&self.pool).await) {
             self.sessions = v;
         }
-        if let Some(v) = try_fetch!(db::statements::top_slow(&self.pool, 50).await) {
-            self.statements = v;
-        } else {
-            // pg_stat_statements not installed is a common case — keep existing and clear error
-            if let Some(ref e) = first_error {
-                if e.contains("pg_stat_statements") {
-                    first_error = None;
-                }
+        match db::statements::top_slow(&self.pool, 50).await {
+            Ok(v) => {
+                self.statements = v;
+                self.statements_error = None;
+            }
+            Err(e) => {
+                // {:#} prints the full anyhow error chain, giving the real PG message
+                // instead of just tokio-postgres's opaque "db error" wrapper.
+                self.statements_error = Some(format!("{:#}", e));
             }
         }
         if let Some(v) = try_fetch!(db::stats::databases(&self.pool).await) {

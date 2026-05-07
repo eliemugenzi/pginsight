@@ -66,7 +66,7 @@ fn draw_header(f: &mut Frame<'_>, app: &App, area: Rect) {
 
     let line = Line::from(vec![
         Span::styled(
-            "pgmon",
+            "pginsight",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),

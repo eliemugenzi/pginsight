@@ -15,7 +15,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .title(" Help — pgmon keybindings (any key to dismiss) ")
+        .title(" Help — pginsight keybindings (any key to dismiss) ")
         .border_style(Style::default().fg(Color::Cyan));
 
     let lines = vec![

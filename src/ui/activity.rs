@@ -127,37 +127,33 @@ fn draw_table(f: &mut Frame<'_>, app: &App, area: Rect) {
 fn draw_query_detail(f: &mut Frame<'_>, app: &App, area: Rect) {
     let idx = app.selected[Tab::Activity.index()];
     let session = app.sessions.get(idx);
-    let query = session
-        .and_then(|s| s.query.as_deref())
-        .unwrap_or("")
-        .trim();
 
     let app_name = session
         .and_then(|s| s.application_name.as_deref())
         .filter(|s| !s.is_empty())
         .map(|s| format!("  app:{s}"))
         .unwrap_or_default();
-
     let client = session
         .and_then(|s| s.client_addr.as_deref())
         .map(|a| format!("  from:{a}"))
         .unwrap_or_default();
-
     let pid_str = session.map(|s| format!("pid:{}", s.pid)).unwrap_or_default();
 
-    let meta = format!("{pid_str}{app_name}{client}");
-    let lines = vec![
-        Line::from(Span::styled(meta, Style::default().fg(Color::DarkGray))),
-        Line::from(if query.is_empty() {
-            Span::styled("(no query)", Style::default().fg(Color::DarkGray))
-        } else {
-            Span::raw(if query.len() > 200 {
-                format!("{}…", &query[..200])
-            } else {
-                query.to_string()
-            })
-        }),
-    ];
+    let mut lines = vec![Line::from(Span::styled(
+        format!("{pid_str}{app_name}{client}"),
+        Style::default().fg(Color::DarkGray),
+    ))];
+
+    let query = session.and_then(|s| s.query.as_deref()).unwrap_or("").trim();
+    if query.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "(no query)",
+            Style::default().fg(Color::DarkGray),
+        )));
+    } else {
+        lines.extend(crate::sql_format::highlight(query));
+    }
+
     f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
 }
 
